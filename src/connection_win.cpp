@@ -152,22 +152,24 @@ char* getenv_(char* name) // written by https://github.com/Francesco149
 	int namelen;
 	char* p;
 
-	fd = open("/proc/self/environ", 0, 0);
-	if (fd < 0) {
-		return 0;
-	}
 	if (!end) {
+		fd = open("/proc/self/environ", 0, 0);
+		if (fd < 0) {
+			return 0;
+		}
+
 		n = read(fd, buf, sizeof(buf));
 		if (n < 0) {
 			return 0;
 		}
+
+		close(fd);
 		end = buf + n;
 	}
 
 	namelen = strlen(name);
 
-	for (p = buf; p < end;)
-	{
+	for (p = buf; p < end;) {
 		if (!strncmp(p, name, namelen)) {
 			return p + namelen + 1; /* skip name and the = */
 		}
