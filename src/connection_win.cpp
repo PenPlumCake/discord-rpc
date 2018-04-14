@@ -146,19 +146,19 @@ int recv(int fd, void* buf, unsigned int len, int flags) {
 char* getenv_(char* name) // written by https://github.com/Francesco149
 {
 	static char buf[1024 * 1024];
-
-	int fd, n;
 	static char* end = 0;
-	int namelen;
+	unsigned int namelen;
 	char* p;
 
 	if (!end) {
+		int fd, n;
+
 		fd = open("/proc/self/environ", 0, 0);
 		if (fd < 0) {
 			return 0;
 		}
 
-		n = read(fd, buf, sizeof(buf));
+		n = read((unsigned int)fd, buf, (unsigned int)sizeof(buf));
 		if (n < 0) {
 			return 0;
 		}
