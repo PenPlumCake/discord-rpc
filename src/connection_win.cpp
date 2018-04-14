@@ -11,175 +11,96 @@ struct sockaddr {
 	unsigned short sa_family;   // address family, AF_xxx
 	char           sa_data[14]; // 14 bytes of protocol address
 };
-#define AF_UNIX		1
-#define SOCK_STREAM		1
-#define F_SETFL 4
-#define O_RDONLY    00000000
-#define O_WRONLY	00000001
-#define O_CREAT     00000100
-#define O_APPEND	00002000
-#define O_NONBLOCK  00004000
+#define AF_UNIX     0x0001
+#define SOCK_STREAM 0x0001
+#define F_SETFL     0x0004
+#define O_RDONLY    0x0000
+#define O_WRONLY    0x0001
+#define O_CREAT     0x0200
+#define O_APPEND    0x0008
+#define O_NONBLOCK  0x0004
 #pragma endregion wine-specific header thingy
 #pragma region
-_declspec(naked) unsigned int getpid() {
+_declspec(naked) void __syscall() {
+	__asm {
+		int 0x80
+		jnc noerror
+		neg eax
+		noerror :
+		ret
+	}
+}
+_declspec(naked) unsigned int __cdecl getpid() {
 	__asm {
 		mov eax, 0x14
-		int 0x80
+		jmp __syscall
 		ret
 	}
 }
-_declspec(naked) int close(int fd) {
+_declspec(naked) int __cdecl close(int fd) {
 	__asm {
-		push ebx
-
 		mov eax, 0x06
-		mov ebx, [esp + 4 + 4]
-		int 0x80
-
-		pop ebx
+		jmp __syscall
 		ret
 	}
 }
-_declspec(naked) int socketcall(int call, void* args) {
+_declspec(naked) int __cdecl fcntl(unsigned int fd, unsigned int cmd, unsigned long arg) {
 	__asm {
-		push ebx
-
-		mov eax, 0x66
-		mov ebx, [esp + 4 + 4]
-		mov ecx, [esp + 4 + 8]
-		int 0x80
-
-		pop ebx
+		mov eax, 0x5c
+		jmp __syscall
 		ret
 	}
 }
-_declspec(naked) int fcntl(unsigned int fd, unsigned int cmd, unsigned long arg) {
+_declspec(naked) int __cdecl open(const char* filename, int flags, int mode) {
 	__asm {
-		push ebx
-
-		mov eax, 0x37
-		mov ebx, [esp + 4 + 4]
-		mov ecx, [esp + 4 + 8]
-		mov edx, [esp + 4 + 12]
-		int 0x80
-
-		pop ebx
-		ret
-	}
-}
-_declspec(naked) int open(const char* filename, int flags, int mode) {
-	__asm {
-		push ebx
-
 		mov eax, 0x05
-		mov ebx, [esp + 4 + 4]
-		mov ecx, [esp + 4 + 8]
-		mov edx, [esp + 4 + 12]
-		int 0x80
-
-		pop ebx
+		jmp __syscall
 		ret
 	}
 }
-_declspec(naked) int write(unsigned int fd, const char* buf, unsigned int count) {
+_declspec(naked) int __cdecl write(unsigned int fd, const char* buf, unsigned int count) {
 	__asm {
-		push ebx
-
 		mov eax, 0x04
-		mov ebx, [esp + 4 + 4]
-		mov ecx, [esp + 4 + 8]
-		mov edx, [esp + 4 + 12]
-		int 0x80
-
-		pop ebx
+		jmp __syscall
 		ret
 	}
 }
-_declspec(naked) int read(unsigned int fd, char* buf, unsigned int count) {
+_declspec(naked) int __cdecl read(unsigned int fd, char* buf, unsigned int count) {
 	__asm {
-		push ebx
-
 		mov eax, 0x03
-		mov ebx, [esp + 4 + 4]
-		mov ecx, [esp + 4 + 8]
-		mov edx, [esp + 4 + 12]
-		int 0x80
-
-		pop ebx
+		jmp __syscall
+		ret
+	}
+}
+_declspec(naked) int __cdecl socket(int domain, int type, int protocol) {
+	__asm {
+		mov eax, 0x61
+		jmp __syscall
+		ret
+	}
+}
+_declspec(naked) int __cdecl connect(int sockfd, const struct sockaddr *addr, unsigned int addrlen) {
+	__asm {
+		mov eax, 0x62
+		jmp __syscall
+		ret
+	}
+}
+_declspec(naked) int __cdecl send(int sockfd, const void* buf, unsigned int len, int flags, int a, int b) {
+	__asm {
+		mov eax, 0x85
+		jmp __syscall
+		ret
+	}
+}
+_declspec(naked) int __cdecl recv(int fd, void* buf, unsigned int len, int flags, int a, int b) {
+	__asm {
+		mov eax, 0x1d
+		jmp __syscall
 		ret
 	}
 }
 #pragma endregion syscall wrappers
-#pragma region
-int socket(int domain, int type, int protocol) {
-	void* args[3];
-	args[0] = (void*)(int*)domain;
-	args[1] = (void*)(int*)type;
-	args[2] = (void*)(int*)protocol;
-	return socketcall(1, args);
-}
-int connect(int sockfd, const struct sockaddr *addr, unsigned int addrlen) {
-	void* args[3];
-	args[0] = (void*)(int*)sockfd;
-	args[1] = (void*)addr;
-	args[2] = (void*)(int*)addrlen;
-	return socketcall(3, args);
-}
-int send(int sockfd, const void* buf, unsigned int len, int flags) {
-	void* args[4];
-	args[0] = (void*)(int*)sockfd;
-	args[1] = (void*)buf;
-	args[2] = (void*)(unsigned int*)len;
-	args[3] = (void*)(int*)flags;
-	return socketcall(9, args);
-}
-int recv(int fd, void* buf, unsigned int len, int flags) {
-	void* args[4];
-	args[0] = (void*)(int*)fd;
-	args[1] = (void*)buf;
-	args[2] = (void*)(unsigned int*)len;
-	args[3] = (void*)(int*)flags;
-	return socketcall(10, args);
-}
-#pragma endregion socketcall wrappers
-
-char* getenv_(char* name) // written by https://github.com/Francesco149
-{
-	static char buf[1024 * 1024];
-	static char* end = 0;
-	unsigned int namelen;
-	char* p;
-
-	if (!end) {
-		int fd, n;
-
-		fd = open("/proc/self/environ", 0, 0);
-		if (fd < 0) {
-			return 0;
-		}
-
-		n = read((unsigned int)fd, buf, (unsigned int)sizeof(buf));
-		if (n < 0) {
-			return 0;
-		}
-
-		close(fd);
-		end = buf + n;
-	}
-
-	namelen = strlen(name);
-
-	for (p = buf; p < end;) {
-		if (!strncmp(p, name, namelen)) {
-			return p + namelen + 1; /* skip name and the = */
-		}
-
-		for (; *p && p < end; ++p); /* skip to next entry */
-		++p;
-	}
-
-	return 0;
-}
 
 int GetProcessId()
 {
@@ -200,10 +121,7 @@ static int MsgFlags = 0;
 
 static const char* GetTempPath()
 {
-	const char* temp = getenv_("XDG_RUNTIME_DIR");
-	temp = temp ? temp : getenv_("TMPDIR");
-	temp = temp ? temp : getenv_("TMP");
-	temp = temp ? temp : getenv_("TEMP");
+	const char* temp = getenv("TMPDIR");
 	temp = temp ? temp : "/tmp";
 	return temp;
 }
@@ -268,7 +186,7 @@ bool BaseConnection::Write(const void* data, unsigned int length)
 		return false;
 	}
 
-	int sentBytes = send(self->sock, data, length, MsgFlags);
+	int sentBytes = send(self->sock, data, length, MsgFlags, 0, 0);
 	if (sentBytes < 0) {
 		Close();
 	}
@@ -283,9 +201,9 @@ bool BaseConnection::Read(void* data, unsigned int length)
 		return false;
 	}
 
-	int res = (int)recv(self->sock, data, length, MsgFlags);
+	int res = (int)recv(self->sock, data, length, MsgFlags, 0, 0);
 	if (res < 0) {
-		if (res == -11) { // EAGAIN
+		if (res == -35) { // EAGAIN
 			return false;
 		}
 		Close();
